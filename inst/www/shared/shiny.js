@@ -1522,6 +1522,14 @@
           };
         }
 
+        // Return true if the offset is inside the previous brush
+        function offsetInsideLastBrush(e) {
+          var prev = prevBrushMinMax();
+          var cur = mouseOffset(e);
+          return cur.x <= prev.max.x && cur.x >= prev.min.x &&
+                 cur.y <= prev.max.y && cur.y >= prev.min.y;
+        }
+
         function sendBrushInfo() {
           // We're in a new or reset state
           if (isNaN(start.x)) {
@@ -1549,6 +1557,25 @@
           exports.onInputChange(inputId, coords);
         }
 
+        // Set cursor to one of 3 styles
+        function setCursorStyle(style) {
+          if (style === 'crosshair') {
+            $img.addClass('crosshair');
+            $img.removeClass('grabbable');
+            $img.removeClass('grabbable');
+
+          } else if (style === 'grabbable') {
+            $img.removeClass('crosshair');
+            $img.addClass('grabbable');
+            $img.removeClass('grabbing');
+
+          } else if (style === 'grabbing') {
+            $img.removeClass('crosshair');
+            $img.removeClass('grabbable');
+            $img.addClass('grabbing');
+          }
+        }
+
         var brushInfoSender;
         if (opts.brushDelayType === 'throttle') {
           brushInfoSender = new Throttler(null, sendBrushInfo, opts.brushDelay);
@@ -1565,22 +1592,15 @@
           // Listen for left mouse button only
           if (e.which !== 1) return;
 
-          // Return true if the mouse is inside the previous brush
-          function mouseInsideLastBrush() {
-            var prev = prevBrushMinMax();
-            var cur = mouseOffset(e);
-            return cur.x <= prev.max.x && cur.x >= prev.min.x &&
-                   cur.y <= prev.max.y && cur.y >= prev.min.y;
-          }
-
           var offset = mouseOffset(e);
 
           // Ignore mousedown events outside of plotting region
           if (opts.brushClip && !isInPlottingRegion(offset)) return;
 
-          if (mouseInsideLastBrush()) {
+          if (offsetInsideLastBrush(e)) {
             isDragging = true;
             dragPrev = offset;
+            setCursorStyle('grabbing');
 
           } else {
             start = offset;
@@ -1596,7 +1616,15 @@
         }
 
         function mousemove(e) {
-          if (!(isBrushing || isDragging)) return;
+          if (!(isBrushing || isDragging)) {
+            // Set the cursor depending on where it is
+            if (offsetInsideLastBrush(e)) {
+              setCursorStyle('grabbable');
+            } else {
+              setCursorStyle('crosshair');
+            }
+            return;
+          }
 
           // Need parent offset relative to page to calculate mouse offset
           // relative to page.
@@ -1708,9 +1736,11 @@
               brushInfoSender.immediateCall();
               return;
             }
+            setCursorStyle('crosshair');
 
           } else if (isDragging) {
             isDragging = false;
+            setCursorStyle('grabbable');
           }
 
           // Send info immediately on mouseup, but only if needed. If we don't
